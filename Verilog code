@@ -1,0 +1,113 @@
+module elevator_controller(
+    input clk,
+    input reset,
+    input [3:0] request,      // Request signals for 4 floors (bit=1 means requested)
+    output reg [1:0] floor,   // Current floor (00 to 11 for 4 floors)
+    output reg door_open,
+    output reg moving_up,
+    output reg moving_down
+);
+
+    // FSM States
+    parameter IDLE      = 3'b000,
+              MOVE_UP   = 3'b001,
+              MOVE_DOWN = 3'b010,
+              OPEN_DOOR = 3'b011;
+
+    reg [2:0] current_state, next_state;
+
+    // --------------------------
+    // State Register
+    // --------------------------
+    always @(posedge clk or posedge reset) begin
+        if (reset)
+            current_state <= IDLE;
+        else
+            current_state <= next_state;
+    end
+
+    // --------------------------
+    // Next State Logic
+    // --------------------------
+    always @(*) begin
+        next_state = current_state; // default
+        case (current_state)
+            IDLE: begin
+                if (request[floor]) begin
+                    next_state = OPEN_DOOR;
+                end 
+                else begin
+                    case (floor)
+                        2'b00: if (|request[3:1]) next_state = MOVE_UP;  // any above floor 0
+                        2'b01: if (|request[3:2]) next_state = MOVE_UP; 
+                               else if (request[0]) next_state = MOVE_DOWN;
+                        2'b10: if (request[3])    next_state = MOVE_UP;
+                               else if (|request[1:0]) next_state = MOVE_DOWN;
+                        2'b11: if (|request[2:0]) next_state = MOVE_DOWN; // any below floor 3
+                        default: next_state = IDLE;
+                    endcase
+                end
+            end
+
+            MOVE_UP: begin
+                if (floor < 2'b11 && request[floor+1])
+                    next_state = OPEN_DOOR;
+                else
+                    next_state = MOVE_UP;
+            end
+
+            MOVE_DOWN: begin
+                if (floor > 2'b00 && request[floor-1])
+                    next_state = OPEN_DOOR;
+                else
+                    next_state = MOVE_DOWN;
+            end
+
+            OPEN_DOOR: next_state = IDLE;
+
+            default: next_state = IDLE;
+        endcase
+    end
+
+    // --------------------------
+    // Output Logic and Floor Update
+    // --------------------------
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            floor      <= 2'b00;  // start at ground floor
+            door_open  <= 0;
+            moving_up  <= 0;
+            moving_down<= 0;
+        end 
+        else begin
+            case (next_state)
+                MOVE_UP: begin
+                    if (floor < 2'b11) floor <= floor + 1; // stay in bounds
+                    moving_up  <= 1;
+                    moving_down<= 0;
+                    door_open  <= 0;
+                end
+
+                MOVE_DOWN: begin
+                    if (floor > 2'b00) floor <= floor - 1; // stay in bounds
+                    moving_up  <= 0;
+                    moving_down<= 1;
+                    door_open  <= 0;
+                end
+
+                OPEN_DOOR: begin
+                    door_open  <= 1;
+                    moving_up  <= 0;
+                    moving_down<= 0;
+                end
+
+                IDLE: begin
+                    moving_up  <= 0;
+                    moving_down<= 0;
+                    door_open  <= 0;
+                end
+            endcase
+        end
+    end
+
+endmodule

@@ -1,0 +1,54 @@
+`timescale 1ns/1ps
+module tb_elevator_controller;
+
+    // Testbench signals
+    reg clk, reset;
+    reg [3:0] request;
+    wire [1:0] floor;
+    wire door_open, moving_up, moving_down;
+
+    // Instantiate DUT (Device Under Test)
+    elevator_controller uut (
+        .clk(clk),
+        .reset(reset),
+        .request(request),
+        .floor(floor),
+        .door_open(door_open),
+        .moving_up(moving_up),
+        .moving_down(moving_down)
+    );
+
+    // Generate clock: 10 ns period
+    always #5 clk = ~clk;
+
+    // Test sequence
+    initial begin
+        // Initialize signals
+        clk = 0; 
+        reset = 1; 
+        request = 4'b0000;
+
+        // Apply reset
+        #20 reset = 0;
+
+        // === Request floor 2 ===
+        #10 request = 4'b0100;   // request floor 2
+        #100 request = 4'b0000;  // clear request
+
+        // === Request floor 0 ===
+        #50 request = 4'b0001;   // request floor 0
+        #100 request = 4'b0000;  // clear request
+
+        // === Request floor 3 ===
+        #50 request = 4'b1000;   // request floor 3
+        #100 request = 4'b0000;  // clear request
+
+        // === Multiple requests (floor 1 & 3) ===
+        #50 request = 4'b1010;   // request floors 1 and 3
+        #200 request = 4'b0000;  // clear request
+
+        // End simulation
+        #200 $stop;
+    end
+
+endmodule
